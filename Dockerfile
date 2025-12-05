@@ -16,7 +16,6 @@
 
 #########################################################################################
 
-
 FROM python:3.12-slim
 
 LABEL name="browseruse" \
@@ -73,7 +72,7 @@ ENV CODE_DIR=/app \
     PATH="/app/.venv/bin:$PATH"
 
 # Build shell config
-SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-o", "errtrace", "-o", "nounset", "-c"] 
+SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-o", "errtrace", "-o", "nounset", "-c"]
 
 # Force apt to leave downloaded binaries in /var/cache/apt (massively speeds up Docker builds)
 RUN echo 'Binary::apt::APT::Keep-Downloaded-Packages "1";' > /etc/apt/apt.conf.d/99keep-cache \
@@ -98,12 +97,6 @@ RUN (echo "[i] Docker build for Browser Use $(cat /VERSION.txt) starting..." \
     && echo -e '\n\n' \
     ) | tee -a /VERSION.txt
 
-    # Install Gradio UI
-RUN pip install --no-cache-dir gradio
-
-# Install Gradio UI into the same venv
-RUN "$VENV_DIR/bin/pip" install --no-cache-dir gradio
-
 # Create non-privileged user for browseruse and chrome
 RUN echo "[*] Setting up $BROWSERUSE_USER user uid=${DEFAULT_PUID}..." \
     && groupadd --system $BROWSERUSE_USER \
@@ -122,27 +115,14 @@ RUN echo "[*] Setting up $BROWSERUSE_USER user uid=${DEFAULT_PUID}..." \
 # Install base apt dependencies (adding backports to access more recent apt updates)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-$TARGETARCH$TARGETVARIANT \
     echo "[+] Installing APT base system dependencies for $TARGETPLATFORM..." \
-#     && echo 'deb https://deb.debian.org/debian bookworm-backports main contrib non-free' > /etc/apt/sources.list.d/backports.list \
     && mkdir -p /etc/apt/keyrings \
     && apt-get update -qq \
     && apt-get install -qq -y --no-install-recommends \
         # 1. packaging dependencies
         apt-transport-https ca-certificates apt-utils gnupg2 unzip curl wget grep \
-        # 2. docker and init system dependencies:
-        # dumb-init gosu cron zlib1g-dev \
-        # 3. frivolous CLI helpers to make debugging failed archiving easierL
+        # 3. frivolous CLI helpers to make debugging failed archiving easier
         nano iputils-ping dnsutils jq \
-        # tree yq procps \
-        # 4. browser dependencies: (auto-installed by playwright install --with-deps chromium)
-     #    libnss3 libxss1 libasound2 libx11-xcb1 \
-     #    fontconfig fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-khmeros fonts-kacst fonts-symbola fonts-noto fonts-freefont-ttf \
-     #    at-spi2-common fonts-liberation fonts-noto-color-emoji fonts-tlwg-loma-otf fonts-unifont libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libavahi-client3 \
-     #    libavahi-common-data libavahi-common3 libcups2 libfontenc1 libice6 libnspr4 libnss3 libsm6 libunwind8 \
-     #    libxaw7 libxcomposite1 libxdamage1 libxfont2 \
-     #    # 5. x11/xvfb dependencies:
-     #    libxkbfile1 libxmu6 libxpm4 libxt6 x11-xkb-utils x11-utils xfonts-encodings \
-     #    xfonts-scalable xfonts-utils xserver-common xvfb \
-     && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -199,6 +179,9 @@ RUN --mount=type=cache,target=/root/.cache,sharing=locked,id=cache-$TARGETARCH$T
         && echo -e '\n\n' \
      ) | tee -a /VERSION.txt
 
+# Install Gradio UI into the (current) venv
+RUN python -m pip install --no-cache-dir gradio
+
 RUN mkdir -p "$DATA_DIR/profiles/default" \
     && chown -R $BROWSERUSE_USER:$BROWSERUSE_USER "$DATA_DIR" "$DATA_DIR"/* \
     && ( \
@@ -207,19 +190,11 @@ RUN mkdir -p "$DATA_DIR/profiles/default" \
         && echo -e "BUILD_END_TIME=$(date +"%Y-%m-%d %H:%M:%S %s")\n\n" \
     ) | tee -a /VERSION.txt
 
-
 USER "$BROWSERUSE_USER"
 VOLUME "$DATA_DIR"
+
 EXPOSE 9242
 EXPOSE 9222
-
-# HEALTHCHECK --interval=30s --timeout=20s --retries=15 \
-#     CMD curl --silent 'http://localhost:8000/health/' | grep -q 'OK'
-
-USER "$BROWSERUSE_USER"
-VOLUME "$DATA_DIR"
-
-# web UI – Gradio
 EXPOSE 7860
 
 ENTRYPOINT ["python", "examples/ui/gradio_demo.py"]
