@@ -10,7 +10,7 @@
 #     docker run -v "$PWD/data":/data browseruse --version
 # Multi-arch build:
 #     docker buildx create --use
-#     docker buildx build . --platform=linux/amd64,linux/arm64--push -t browseruse/browseruse:some-tag
+#     docker buildx build . --platform=linux/amd64,linux/arm64 --push -t browseruse/browseruse:some-tag
 #
 # Read more: https://docs.browser-use.com
 
@@ -72,7 +72,7 @@ ENV CODE_DIR=/app \
     PATH="/app/.venv/bin:$PATH"
 
 # Build shell config
-SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-o", "errtrace", "-o", "nounset", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-o "errexit", "-o", "errtrace", "-o", "nounset", "-c"]
 
 # Force apt to leave downloaded binaries in /var/cache/apt (massively speeds up Docker builds)
 RUN echo 'Binary::apt::APT::Keep-Downloaded-Packages "1";' > /etc/apt/apt.conf.d/99keep-cache \
@@ -179,8 +179,14 @@ RUN --mount=type=cache,target=/root/.cache,sharing=locked,id=cache-$TARGETARCH$T
         && echo -e '\n\n' \
      ) | tee -a /VERSION.txt
 
-# Install Gradio UI into the (current) venv
-RUN python -m pip install --no-cache-dir gradio
+# Install Gradio UI into the same environment using uv pip
+RUN --mount=type=cache,target=/root/.cache,sharing=locked,id=cache-$TARGETARCH$TARGETVARIANT \
+     echo "[+] Installing gradio UI..." \
+     && ( \
+        uv pip install --no-cache-dir gradio \
+        && python -c "import gradio; print('gradio installed successfully')" \
+        && echo -e '\n\n' \
+     ) | tee -a /VERSION.txt
 
 RUN mkdir -p "$DATA_DIR/profiles/default" \
     && chown -R $BROWSERUSE_USER:$BROWSERUSE_USER "$DATA_DIR" "$DATA_DIR"/* \
