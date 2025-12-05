@@ -101,6 +101,9 @@ RUN (echo "[i] Docker build for Browser Use $(cat /VERSION.txt) starting..." \
     # Install Gradio UI
 RUN pip install --no-cache-dir gradio
 
+# Install Gradio UI into the same venv
+RUN "$VENV_DIR/bin/pip" install --no-cache-dir gradio
+
 # Create non-privileged user for browseruse and chrome
 RUN echo "[*] Setting up $BROWSERUSE_USER user uid=${DEFAULT_PUID}..." \
     && groupadd --system $BROWSERUSE_USER \
